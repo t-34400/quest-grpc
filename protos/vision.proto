@@ -1,0 +1,21 @@
+syntax = "proto3";
+package vision;
+
+message Box { float x = 1; float y = 2; float w = 3; float h = 4; }
+message Detection { Box box = 1; int32 class_id = 2; float score = 3; }
+
+message DetectRequest {
+  bytes image = 1;
+  uint32 width = 2;
+  uint32 height = 3;
+  float score_threshold = 4;
+  string image_id = 5;
+}
+
+message DetectResponse {
+  repeated Detection detections = 1;
+}
+
+service Vision {
+  rpc Detect(DetectRequest) returns (DetectResponse);
+}
