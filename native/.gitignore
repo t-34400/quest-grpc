@@ -45,3 +45,7 @@ grpc/
 protobuf/
 protoc/
 *.protoset
+
+# build
+build-android/
+build-android-test/
