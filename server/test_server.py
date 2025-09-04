@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 import re
@@ -9,7 +8,6 @@ import grpc
 import vision_pb2 as pb
 import vision_pb2_grpc as pb_grpc
 
-
 SAVE_ROOT = Path(os.environ.get("AIV_SAVE_DIR", "./received")).resolve()
 
 
@@ -18,7 +16,12 @@ def _safe(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", s)[:128] or "unk"
 
 
-class VisionServicer(pb_grpc.VisionServicer):
+class TestVisionServicer(pb_grpc.VisionServicer):
+    def __init__(self):
+        super().__init__()
+        SAVE_ROOT.mkdir(parents=True, exist_ok=True)
+        print(f"Vision server listening on :8032; saving to {SAVE_ROOT}")
+
     async def Detect(self, request, context):
         if not request.width or not request.height:
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "width/height required")
@@ -72,30 +75,3 @@ class VisionServicer(pb_grpc.VisionServicer):
                 detections=[det],
             )
             yield res
-
-
-async def serve() -> None:
-    server = grpc.aio.server(options=[
-        ("grpc.max_send_message_length", 100 * 1024 * 1024),
-        ("grpc.max_receive_message_length", 100 * 1024 * 1024),
-        ("grpc.keepalive_time_ms", 15000),
-        ("grpc.keepalive_timeout_ms", 5000),
-        ("grpc.keepalive_permit_without_calls", 1),
-    ])
-    pb_grpc.add_VisionServicer_to_server(VisionServicer(), server)
-
-    server.add_insecure_port("0.0.0.0:8032")
-    server.add_insecure_port("[::]:8032")
-
-    SAVE_ROOT.mkdir(parents=True, exist_ok=True)
-    print(f"Vision server listening on :8032; saving to {SAVE_ROOT}")
-
-    await server.start()
-    try:
-        await server.wait_for_termination()
-    finally:
-        await server.stop(grace=5)
-
-
-if __name__ == "__main__":
-    asyncio.run(serve())
