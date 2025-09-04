@@ -20,6 +20,12 @@ namespace Grpc
     ERR_INTERNAL = -9
   }
 
+  public enum CamRole : int
+  {
+    LEFT = 0,
+    RIGHT = 1
+  }
+
   [StructLayout(LayoutKind.Sequential, Pack = 8)]
   public struct Intrinsics { public float fx, fy, cx, cy, skew; }
 
@@ -55,6 +61,14 @@ namespace Grpc
     public Detection[] Detections;
   }
 
+  [StructLayout(LayoutKind.Sequential)]
+  public struct JpegConfig
+  {
+    public int jpeg_width;
+    public int jpeg_height;
+    public int jpeg_quality;
+  }
+
   public static class Native
   {
     const string LIB = "aiv_plugin";
@@ -80,21 +94,33 @@ namespace Grpc
     static extern void AIV_Shutdown();
     [DllImport(LIB, CallingConvention = CallingConvention.Cdecl)]
     static extern void AIV_SetCallbacks(OnResultCb on_result, OnErrorCb on_error, OnFrameSentCb on_frame_sent);
+
+    [DllImport(LIB, CallingConvention = CallingConvention.Cdecl)]
+    static extern AivStatus AIV_SetJpegConfig(ref JpegConfig cfg);
+    [DllImport(LIB, CallingConvention = CallingConvention.Cdecl)]
+    static extern void AIV_GetJpegConfig(out JpegConfig outCfg);
+
     [DllImport(LIB, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     static extern AivStatus AIV_EnumerateCameras(StringBuilder out_json, int capacity);
     [DllImport(LIB, CallingConvention = CallingConvention.Cdecl)]
-    static extern AivStatus AIV_OpenCameraByPosition(int position_value, ref CaptureConfig config, StringBuilder out_cam_id, int cam_id_capacity);
-    [DllImport(LIB, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    static extern AivStatus AIV_OpenCameraById(string cam_id, ref CaptureConfig config);
+    static extern AivStatus AIV_GetCameraIdByPosition(int role, StringBuilder out_camera_id, int cap);
     [DllImport(LIB, CallingConvention = CallingConvention.Cdecl)]
-    static extern AivStatus AIV_GetCameraParams([MarshalAs(UnmanagedType.LPStr)] string cam_id, out Intrinsics K, out Extrinsics X);
+    static extern AivStatus AIV_GetCameraParams(string cam_id, out Intrinsics K, out Extrinsics X);
+
     [DllImport(LIB, CallingConvention = CallingConvention.Cdecl)]
     static extern AivStatus AIV_SetScoreThreshold(float score_threshold);
     [DllImport(LIB, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     static extern AivStatus AIV_SetImageIdPrefix(string prefix);
+
     [DllImport(LIB, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    static extern AivStatus AIV_StartStreaming(string cam_id, string stream_id);
+    static extern AivStatus AIV_SetStereoStreamBaseId(string base_id);
+    [DllImport(LIB, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    static extern AivStatus AIV_SetCameraForRole(int role, string cam_id, ref CaptureConfig config);
+
     [DllImport(LIB, CallingConvention = CallingConvention.Cdecl)]
+    static extern AivStatus AIV_StartStreamingStereo();
+
+    [DllImport(LIB, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     static extern AivStatus AIV_StopStreaming();
     [DllImport(LIB, CallingConvention = CallingConvention.Cdecl)]
     static extern int AIV_IsStreaming();
@@ -115,6 +141,9 @@ namespace Grpc
       AIV_SetCallbacks(s_onResultCb, s_onErrorCb, s_onFrameSentCb);
     }
 
+    public static AivStatus SetJpegConfig(JpegConfig cfg) => AIV_SetJpegConfig(ref cfg);
+    public static JpegConfig GetJpegConfig() { AIV_GetJpegConfig(out var c); return c; }
+
     public static AivStatus EnumerateCameras(out string json)
     {
       var sb = new StringBuilder(4096);
@@ -123,19 +152,21 @@ namespace Grpc
       return st;
     }
 
-    public static AivStatus OpenCameraByPosition(int positionValue, CaptureConfig cfg, out string camId)
+    public static AivStatus AIV_GetCameraIdByPosition(CamRole role, out string camId)
     {
       var sb = new StringBuilder(128);
-      var st = AIV_OpenCameraByPosition(positionValue, ref cfg, sb, sb.Capacity);
+      var st = AIV_GetCameraIdByPosition((int)role, sb, sb.Capacity);
       camId = st == AivStatus.OK ? sb.ToString() : "";
       return st;
     }
-
-    public static AivStatus OpenCameraById(string camId, CaptureConfig cfg) => AIV_OpenCameraById(camId, ref cfg);
     public static AivStatus GetCameraParams(string camId, out Intrinsics K, out Extrinsics X) => AIV_GetCameraParams(camId, out K, out X);
     public static AivStatus SetScoreThreshold(float v) => AIV_SetScoreThreshold(v);
     public static AivStatus SetImageIdPrefix(string prefix) => AIV_SetImageIdPrefix(prefix);
-    public static AivStatus StartStreaming(string camId, string streamId) => AIV_StartStreaming(camId, streamId);
+
+    public static AivStatus SetStereoStreamBaseId(string baseId) => AIV_SetStereoStreamBaseId(baseId);
+    public static AivStatus SetCameraForRole(CamRole role, string camId, CaptureConfig cfg) => AIV_SetCameraForRole((int)role, camId, ref cfg);
+    public static AivStatus StartStreamingStereo() => AIV_StartStreamingStereo();
+
     public static AivStatus StopStreaming() => AIV_StopStreaming();
     public static bool IsStreaming() => AIV_IsStreaming() != 0;
 

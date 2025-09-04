@@ -229,6 +229,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   host: 127.0.0.1
   port: 8032
+  baseStreamId: unity_stream
+  autoStart: 1
+  enableLeftCamStreaming: 1
+  leftPositionValue: 0
+  leftWidth: 640
+  leftHeight: 480
+  leftFps: 30
+  enableRightCamStreaming: 0
+  rightPositionValue: 1
+  rightWidth: 640
+  rightHeight: 480
+  rightFps: 30
+  scoreThreshold: 0
+  imageIdPrefix: img
+  jpegWidth: 0
+  jpegHeight: 0
+  jpegQuality: 70
 --- !u!114 &348424655
 MonoBehaviour:
   m_ObjectHideFlags: 0

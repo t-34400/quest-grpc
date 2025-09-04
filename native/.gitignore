@@ -40,11 +40,14 @@
 # debug information files
 *.dwo
 
-# gRPC/Protobuf
-grpc/
-protobuf/
+# Third party
+third_party/grpc/
+third_party/protobuf/
 protoc/
 *.protoset
+
+third_party/libjpeg-turbo/
+third_party/libyuv/
 
 # build
 build-android/

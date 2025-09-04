@@ -1,21 +1,54 @@
 syntax = "proto3";
+
 package vision;
 
-message Box { float x = 1; float y = 2; float w = 3; float h = 4; }
-message Detection { Box box = 1; int32 class_id = 2; float score = 3; }
-
-message DetectRequest {
-  bytes image = 1;
-  uint32 width = 2;
-  uint32 height = 3;
-  float score_threshold = 4;
-  string image_id = 5;
-}
-
-message DetectResponse {
-  repeated Detection detections = 1;
-}
+option java_multiple_files = true;
+option java_package = "ai.vision";
+option csharp_namespace = "Ai.Vision";
 
 service Vision {
-  rpc Detect(DetectRequest) returns (DetectResponse);
+  // Bidirectional streaming of frames and results.
+  rpc StreamDetect (stream Frame) returns (stream Result);
+}
+
+enum ImageFormat {
+  IMAGE_FORMAT_UNKNOWN = 0;
+  IMAGE_FORMAT_JPEG   = 1;
+  IMAGE_FORMAT_I420   = 2;
+  IMAGE_FORMAT_NV12   = 3;
+  IMAGE_FORMAT_RGB    = 4;
+  IMAGE_FORMAT_BGR    = 5;
+}
+
+message Frame {
+  string  stream_id    = 1;
+  string  camera_id    = 2;
+  uint64  frame_index  = 3;   // Monotonic per stream
+  uint64  timestamp_ns = 4;   // Capture time
+  uint32  width        = 5;
+  uint32  height       = 6;
+  ImageFormat format   = 7;
+  bytes   data         = 8;   // Encoded image payload
+}
+
+message Result {
+  string  stream_id     = 1;
+  uint64  frame_index   = 2;  // Matches Frame.frame_index
+  uint64  timestamp_ns  = 3;  // Echo of capture time
+  repeated Detection detections = 4;
+  uint64  processing_ns = 5;  // Optional: server-side latency
+}
+
+message Detection {
+  uint32 class_id   = 1;
+  string class_name = 2;
+  float  score      = 3;
+  Box    box        = 4;      // Pixel coordinates
+}
+
+message Box {
+  float x = 1; // left
+  float y = 2; // top
+  float w = 3; // width
+  float h = 4; // height
 }
