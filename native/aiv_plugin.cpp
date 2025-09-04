@@ -1,5 +1,7 @@
 #include "aiv_plugin.h"
 
+#include <time.h>
+
 #include <string>
 #include <vector>
 #include <thread>
@@ -34,7 +36,6 @@ static AIV_OnError      g_on_error      = nullptr;
 static AIV_OnFrameSent  g_on_frame_sent = nullptr;
 
 static std::string   g_target;
-static std::string   g_image_prefix = "img";
 static std::string   g_stream_base  = "default";
 static std::atomic<int> g_running{0};
 static std::atomic<int> g_connected{0};
@@ -462,7 +463,7 @@ static void send_loop() {
       }
 
       char idbuf[128];
-      std::snprintf(idbuf, sizeof(idbuf), "%s_%lld", g_image_prefix.c_str(), (long long)pkt.frame_index);
+      std::snprintf(idbuf, sizeof(idbuf), "%s_%lld", pkt.stream_id.c_str(), (long long)pkt.frame_index);
       if (g_on_frame_sent) g_on_frame_sent(idbuf, pkt.frame_index, (double)pkt.ts_ns * 1e-9);
       return true;
     };
@@ -511,7 +512,7 @@ static void recv_loop() {
     }
 
     char idbuf[128];
-    std::snprintf(idbuf, sizeof(idbuf), "%s_%llu", g_image_prefix.c_str(), (unsigned long long)res.frame_index());
+    std::snprintf(idbuf, sizeof(idbuf), "%s_%llu", res.stream_id().c_str(), (unsigned long long)res.frame_index());
     AIV_Result r{};
     r.image_id = idbuf;
     r.frame_index = (int64_t)res.frame_index();
@@ -577,7 +578,6 @@ AIV_Status AIV_SetJpegConfig(const AIV_JpegConfig* cfg) {
 void AIV_GetJpegConfig(AIV_JpegConfig* out) { if (out) *out = g_jpeg_cfg; }
 
 AIV_Status AIV_SetScoreThreshold(float score_threshold) { g_score_thresh = score_threshold; return AIV_OK; }
-AIV_Status AIV_SetImageIdPrefix(const char* prefix) { if (!prefix) return AIV_ERR_INVALID_ARG; g_image_prefix = prefix; return AIV_OK; }
 AIV_Status AIV_SetStereoStreamBaseId(const char* base_id) { if (!base_id) return AIV_ERR_INVALID_ARG; g_stream_base = base_id; return AIV_OK; }
 
 #if defined(__ANDROID__)
@@ -773,31 +773,65 @@ AIV_Status AIV_GetCameraIdByPosition(int32_t position_value, char* out_cam_id, i
 #endif
 }
 
-AIV_Status AIV_GetCameraParams(const char* cam_id, AIV_Intrinsics* K, AIV_Extrinsics* X) {
+AIV_Status AIV_GetCameraParams(const char* cam_id, AIV_Intrinsics* K, AIV_Extrinsics* X, AIV_Rect* A) {
   if (!cam_id || !K || !X) return AIV_ERR_INVALID_ARG;
 #if defined(__ANDROID__)
   if (!g_mgr) return AIV_ERR_NOT_INITIALIZED;
+
   ACameraMetadata* chars = nullptr;
-  if (ACameraManager_getCameraCharacteristics(g_mgr, cam_id, &chars) != ACAMERA_OK || !chars) return AIV_ERR_CAMERA_PARAM;
-  float intr[5] = {}; float t[3] = {}; float q[4] = {};
-  auto read_floats = [](const ACameraMetadata* m, uint32_t tag, float* out, int n)->int{
-    if (!m || !out || n<=0) return 0;
+  if (ACameraManager_getCameraCharacteristics(g_mgr, cam_id, &chars) != ACAMERA_OK || !chars)
+    return AIV_ERR_CAMERA_PARAM;
+
+  auto read_floats = [](const ACameraMetadata* m, uint32_t tag, float* out, int n)->int {
+    if (!m || !out || n <= 0) return 0;
     ACameraMetadata_const_entry e{};
     if (ACameraMetadata_getConstEntry(m, tag, &e) != ACAMERA_OK) return 0;
-    int c = e.count < (size_t)n ? (int)e.count : n;
-    for (int i=0;i<c;++i) out[i] = e.data.f[i];
+    int c = (int)((e.count < (size_t)n) ? e.count : (size_t)n);
+    for (int i = 0; i < c; ++i) out[i] = e.data.f[i];
     return c;
   };
+  auto read_i32 = [](const ACameraMetadata* m, uint32_t tag, int32_t* out, int n)->int {
+    if (!m || !out || n <= 0) return 0;
+    ACameraMetadata_const_entry e{};
+    if (ACameraMetadata_getConstEntry(m, tag, &e) != ACAMERA_OK) return 0;
+    int c = (int)((e.count < (size_t)n) ? e.count : (size_t)n);
+    for (int i = 0; i < c; ++i) out[i] = e.data.i32[i];
+    return c;
+  };
+
+  float intr[5] = {};
+  float t[3] = {};
+  float q[4] = {};
+  int32_t active[4] = {};
+
   int s1 = read_floats(chars, ACAMERA_LENS_INTRINSIC_CALIBRATION, intr, 5);
-  int s2 = read_floats(chars, ACAMERA_LENS_POSE_TRANSLATION, t, 3);
-  int s3 = read_floats(chars, ACAMERA_LENS_POSE_ROTATION, q, 4);
+  int s2 = read_floats(chars, ACAMERA_LENS_POSE_TRANSLATION,    t,    3);
+  int s3 = read_floats(chars, ACAMERA_LENS_POSE_ROTATION,       q,    4);
+  int s4 = (A ? read_i32(chars, ACAMERA_SENSOR_INFO_ACTIVE_ARRAY_SIZE, active, 4) : 4);
+
   ACameraMetadata_free(chars);
-  if (s1<=0 || s2<=0 || s3<=0) return AIV_ERR_CAMERA_PARAM;
-  K->fx = intr[0]; K->fy = intr[1]; K->cx = intr[2]; K->cy = intr[3]; K->skew = intr[4];
+
+  if (s1 < 4 || s2 < 3 || s3 < 4) return AIV_ERR_CAMERA_PARAM;
+  if (A && s4 < 4) return AIV_ERR_CAMERA_PARAM;
+
+  K->fx = intr[0]; K->fy = intr[1]; K->cx = intr[2]; K->cy = intr[3];
+  K->skew = (s1 >= 5) ? intr[4] : 0.0f;
+
   X->tx = t[0]; X->ty = t[1]; X->tz = t[2];
   X->qx = q[0]; X->qy = q[1]; X->qz = q[2]; X->qw = q[3];
+
+  if (A) { A->left = active[0]; A->top = active[1]; A->width = active[2]; A->height = active[3]; }
+
   return AIV_OK;
 #else
   return AIV_ERR_INTERNAL;
 #endif
+}
+
+int64_t AIV_GetElapsedRealtimeNanos() {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+    }
+    return -1;
 }

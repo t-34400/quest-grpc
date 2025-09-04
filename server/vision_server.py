@@ -143,6 +143,7 @@ class VisionServicer(pb_grpc.VisionServicer):
             try:
                 dets = self._run_onnx(req.data)
                 res = pb.Result(
+                    stream_id=req.stream_id,
                     frame_index=req.frame_index,
                     timestamp_ns=req.timestamp_ns,
                     detections=dets,

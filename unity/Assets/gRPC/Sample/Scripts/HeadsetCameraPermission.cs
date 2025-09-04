@@ -1,3 +1,5 @@
+#nullable enable
+
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Android;
@@ -8,7 +10,7 @@ namespace Grpc.Sample
     {
         [System.Serializable] public class PermissionGrantedEvent : UnityEvent { }
 
-        public PermissionGrantedEvent onPermissionsGranted;
+        public PermissionGrantedEvent onPermissionsGranted = null!;
 
         const string HeadsetCam = "horizonos.permission.HEADSET_CAMERA";
 

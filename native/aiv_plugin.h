@@ -25,6 +25,10 @@ typedef struct {
 } AIV_Extrinsics;
 
 typedef struct {
+  int32_t left, top, width, height;
+} AIV_Rect;
+
+typedef struct {
   int32_t width;
   int32_t height;
   int32_t fps;
@@ -90,10 +94,10 @@ AIV_Status AIV_EnumerateCameras(char* out_json, int32_t capacity);
 AIV_Status AIV_GetCameraIdByPosition(int32_t position_value, char* out_cam_id, int32_t cap);
 AIV_Status AIV_GetCameraParams(const char* cam_id,
                                AIV_Intrinsics* K,
-                               AIV_Extrinsics* X);
+                               AIV_Extrinsics* X, 
+                               AIV_Rect* A);
 
 AIV_Status AIV_SetScoreThreshold(float score_threshold);
-AIV_Status AIV_SetImageIdPrefix(const char* prefix);
 
 AIV_Status AIV_SetStereoStreamBaseId(const char* base_id);
 AIV_Status AIV_SetCameraForRole(int role /* AIV_CamRole */,
@@ -103,6 +107,8 @@ AIV_Status AIV_SetCameraForRole(int role /* AIV_CamRole */,
 AIV_Status AIV_StartStreamingStereo(void);
 AIV_Status AIV_StopStreaming(void);
 int32_t    AIV_IsStreaming(void);
+
+int64_t    AIV_GetElapsedRealtimeNanos();
 
 #ifdef __cplusplus
 }
