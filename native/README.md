@@ -91,6 +91,36 @@ cmake -B build-android -S . \
 cmake --build build-android -j
 ```
 
+### Build
+```bash
+export API=26
+export ABI=arm64-v8a
+export PREFIX=$HOME/android/third_party/$ABI
+
+OUTPUT="build-android"
+
+rm -rf $OUTPUT
+cmake -B $OUTPUT -S . \
+  -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+  -DANDROID_ABI="$ABI" \
+  -DANDROID_PLATFORM=android-"$API" \
+  -DCMAKE_PREFIX_PATH="$PREFIX/grpc" \
+  -Dabsl_DIR="$PREFIX/grpc/lib/cmake/absl" \
+  -Dutf8_range_DIR="$PREFIX/grpc/lib/cmake/utf8_range" \
+  -DProtobuf_DIR="$PREFIX/grpc/lib/cmake/protobuf" \
+  -DgRPC_DIR="$PREFIX/grpc/lib/cmake/grpc"
+
+cmake --build $OUTPUT -j
+```
+
+### Install into Unity project
+```bash
+export ABI=arm64-v8a
+PLUGIN_DIR="../unity/Assets/gRPC/Plugins/Android/${ABI}"
+mkdir -p $PLUGIN_DIR
+cp build-android/libaiv_plugin.so $PLUGIN_DIR
+```
+
 ## Test gRPC runner
 ### Build
 ```bash
