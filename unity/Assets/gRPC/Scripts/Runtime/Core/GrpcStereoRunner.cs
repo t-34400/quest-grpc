@@ -149,7 +149,12 @@ namespace Grpc
         {
             if (!streamId.StartsWith(baseStreamId)) return null;
 
-            var roleString = streamId.Skip(baseStreamId.Length + 1).Take(4).ToString().ToUpper();
+            var roleString = new string(
+                streamId.Skip(baseStreamId.Length + 1)
+                        .Take(4)
+                        .ToArray()
+            ).ToUpperInvariant();
+
             if (roleString.Equals("LEFT"))
                 return LeftCameraParams;
 
